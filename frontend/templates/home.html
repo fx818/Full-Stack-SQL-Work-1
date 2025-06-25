@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Agent Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        let currentStateHex = null;
+        let currentUsername = "{{ user.username }}"; // Dynamic username from Django auth
+        console.log(currentUsername);
+        let lastExecutedQuery = null; // Store last executed query for regeneration
+
+        // API Functions
+        async function sendQuery() {
+            const userInput = document.getElementById("messageInput").value;
+            if (!userInput.trim()) return;
+
+            const chatBox = document.getElementById("chatBox");
+            
+            // Add user message to chat
+            addMessageToChat(userInput, 'user');
+            
+            // Clear input box
+            document.getElementById("messageInput").value = "";
+            
+            // Show loading
+            showLoading(true);
+            
+            // Hide any existing regenerate options
+            hideRegenerateOption();
+
+            try {
+                const response = await fetch("http://localhost:8001/api/v1/query", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        username: currentUsername,
+                        question: userInput
+                    })
+                });
+
+                // Check if the response is ok
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                showLoading(false);
+
+                if (data.state_hex) {
+                    // This is an ApprovalResponse - SQL query needs approval
+                    currentStateHex = data.state_hex;
+                    showApprovalInterface(data);
+                } else {
+                    // This is a QueryResponse - immediate chat response
+                    addMessageToChat(data.answer || "No response received", 'bot');
+                    if (data.query) {
+                        addQueryToChat(data.query, data.result);
+                    }
+                }
+
+            } catch (error) {
+                showLoading(false);
+                console.error("API Error:", error);
+                
+                // Provide more detailed error messages
+                let errorMessage = "Connection failed. Please check: ";
+                if (error.message.includes('fetch')) {
+                    errorMessage += "• Is the API server running on http://localhost:8001? • Are there any CORS issues?";
+                } else if (error.message.includes('HTTP')) {
+                    errorMessage += `• Server returned: ${error.message}`;
+                } else {
+                    errorMessage += `• ${error.message}`;
+                }
+                
+                addMessageToChat(errorMessage, 'bot');
+            }
+        }
+
+        async function approveQuery(feedback = "") {
+            if (!currentStateHex) return;
+
+            showLoading(true);
+
+            try {
+                const response = await fetch("http://localhost:8001/api/v1/query/approve", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        state_hex: currentStateHex,
+                        feedback: feedback
+                    })
+                });
+
+                const data = await response.json();
+                showLoading(false);
+
+                hideApprovalInterface();
+                addMessageToChat(data.answer, 'bot');
+                if (data.query) {
+                    addQueryToChat(data.query, data.result);
+                    // Store the executed query details for potential regeneration
+                    lastExecutedQuery = {
+                        query: data.query,
+                        result: data.result,
+                        question: data.question || '',
+                        resolved_question: data.resolved_question || ''
+                    };
+                    showRegenerateOption();
+                }
+                currentStateHex = null;
+
+            } catch (error) {
+                showLoading(false);
+                console.error("API Error:", error);
+                addMessageToChat("Error executing approved query.", 'bot');
+            }
+        }
+
+        async function regenerateQuery() {
+            const feedback = document.getElementById("feedbackInput").value;
+            if (!currentStateHex) return;
+
+            showLoading(true);
+
+            try {
+                const response = await fetch("http://localhost:8001/api/v1/query/regenerate", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        state_hex: currentStateHex,
+                        feedback: feedback
+                    })
+                });
+
+                const data = await response.json();
+                showLoading(false);
+
+                currentStateHex = data.state_hex;
+                showApprovalInterface(data);
+                document.getElementById("feedbackInput").value = "";
+
+            } catch (error) {
+                showLoading(false);
+                console.error("API Error:", error);
+                addMessageToChat("Error regenerating query.", 'bot');
+            }
+        }
+
+        async function handleMemoryCommand(command) {
+            showLoading(true);
+
+            try {
+                const response = await fetch("http://localhost:8001/api/v1/memory/command", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        username: currentUsername,
+                        command: command
+                    })
+                });
+
+                const data = await response.json();
+                showLoading(false);
+
+                if (data.success) {
+                    addMessageToChat(data.message, 'bot');
+                    if (data.data) {
+                        addDataToChat(data.data);
+                    }
+                } else {
+                    addMessageToChat(data.message, 'bot');
+                }
+
+            } catch (error) {
+                showLoading(false);
+                console.error("API Error:", error);
+                addMessageToChat("Error executing memory command.", 'bot');
+            }
+        }
+
+        async function checkHealth() {
+            showLoading(true);
+
+            try {
+                const response = await fetch("http://localhost:8001/api/v1/health");
+                const data = await response.json();
+                showLoading(false);
+
+                const status = data.status === 'healthy' ? '✅ Healthy' : '❌ Unhealthy';
+                const dbStatus = data.database_connected ? '✅ Connected' : '❌ Disconnected';
+                const supabaseStatus = data.supabase_connected ? '✅ Connected' : '❌ Disconnected';
+                
+                const healthMessage = `System Health: ${status}<br/>Database: ${dbStatus}<br/>Supabase: ${supabaseStatus}<br/>Timestamp: ${data.timestamp}`;
+                addMessageToChat(healthMessage, 'bot');
+
+            } catch (error) {
+                showLoading(false);
+                console.error("API Error:", error);
+                addMessageToChat("Error checking system health.", 'bot');
+            }
+        }
+
+        async function getAllUsers() {
+            showLoading(true);
+
+            try {
+                const response = await fetch("http://localhost:8001/api/v1/users");
+                const data = await response.json();
+                showLoading(false);
+
+                if (data.success) {
+                    const usersList = data.users.join(', ');
+                    addMessageToChat(`Active Users (${data.total_users}): ${usersList}`, 'bot');
+                } else {
+                    addMessageToChat("Error retrieving users.", 'bot');
+                }
+
+            } catch (error) {
+                showLoading(false);
+                console.error("API Error:", error);
+                addMessageToChat("Error retrieving users.", 'bot');
+            }
+        }
+
+        async function clearMemory() {
+            if (!confirm("Are you sure you want to clear your memory?")) return;
+
+            showLoading(true);
+
+            try {
+                const response = await fetch(`http://localhost:8001/api/v1/memory/${currentUsername}`, {
+                    method: "DELETE"
+                });
+                const data = await response.json();
+                showLoading(false);
+
+                if (data.success) {
+                    addMessageToChat(data.message, 'bot');
+                } else {
+                    addMessageToChat("Error clearing memory.", 'bot');
+                }
+
+            } catch (error) {
+                showLoading(false);
+                console.error("API Error:", error);
+                addMessageToChat("Error clearing memory.", 'bot');
+            }
+        }
+
+        async function regenerateLastQuery() {
+            if (!lastExecutedQuery) {
+                addMessageToChat("No previous query to regenerate.", 'bot');
+                return;
+            }
+
+            const feedback = document.getElementById("postExecutionFeedback").value;
+            if (!feedback.trim()) {
+                addMessageToChat("Please provide feedback for regeneration.", 'bot');
+                return;
+            }
+
+            showLoading(true);
+            hideRegenerateOption();
+
+            try {
+                // Create a new query request with feedback
+                const response = await fetch("http://localhost:8001/api/v1/query", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        username: currentUsername,
+                        question: `${lastExecutedQuery.resolved_question || lastExecutedQuery.question}. Previous query was: "${lastExecutedQuery.query}". Please modify it based on this feedback: ${feedback}`
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                showLoading(false);
+
+                addMessageToChat(`Regenerating query based on feedback: "${feedback}"`, 'bot');
+
+                if (data.state_hex) {
+                    currentStateHex = data.state_hex;
+                    showApprovalInterface(data);
+                } else {
+                    addMessageToChat(data.answer || "No response received", 'bot');
+                    if (data.query) {
+                        addQueryToChat(data.query, data.result);
+                    }
+                }
+
+            } catch (error) {
+                showLoading(false);
+                console.error("Regeneration Error:", error);
+                addMessageToChat("Error regenerating query. Please try again.", 'bot');
+                showRegenerateOption(); // Show the option again if there was an error
+            }
+        }
+
+        async function showDatabaseSchema() {
+            showLoading(true);
+            addMessageToChat("📊 Fetching database schema...", 'bot');
+
+            try {
+                const response = await fetch("http://localhost:8001/api/v1/schema", {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                showLoading(false);
+
+                if (data.success && data.schema) {
+                    let schemaMessage = "🗂️ <strong>Database Schema:</strong><br/><br/>";
+                    
+                    for (const [tableName, columns] of Object.entries(data.schema)) {
+                        schemaMessage += `📋 <strong>${tableName}</strong><br/>`;
+                        columns.forEach(column => {
+                            schemaMessage += `&nbsp;&nbsp;• ${column.name} (${column.type})`;
+                            if (column.primary_key) schemaMessage += " 🔑";
+                            if (column.nullable === false) schemaMessage += " ⚠️";
+                            schemaMessage += "<br/>";
+                        });
+                        schemaMessage += "<br/>";
+                    }
+                    
+                    addMessageToChat(schemaMessage, 'bot');
+                } else {
+                    addMessageToChat("❌ Failed to retrieve database schema.", 'bot');
+                }
+
+            } catch (error) {
+                showLoading(false);
+                console.error("Schema Error:", error);
+                
+                let errorMessage = "❌ Failed to fetch database schema:<br/>";
+                if (error.message.includes('fetch') || error.name === 'TypeError') {
+                    errorMessage += "• API server is not running on http://localhost:8001<br/>";
+                    errorMessage += "• Please start your FastAPI server<br/>";
+                    errorMessage += "• Check if the schema endpoint is available";
+                } else if (error.message.includes('404')) {
+                    errorMessage += "• Schema endpoint not implemented yet<br/>";
+                    errorMessage += "• You can ask me 'What tables are available?' instead";
+                } else {
+                    errorMessage += `• ${error.message}`;
+                }
+                
+                addMessageToChat(errorMessage, 'bot');
+            }
+        }
+
+        async function testConnection() {
+            showLoading(true);
+            addMessageToChat("Testing API connection...", 'bot');
+
+            try {
+                const response = await fetch("http://localhost:8001/api/v1/health", {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                showLoading(false);
+
+                addMessageToChat(`✅ Connection successful!<br/>Status: ${data.status}<br/>Database: ${data.database_connected ? 'Connected' : 'Disconnected'}<br/>Supabase: ${data.supabase_connected ? 'Connected' : 'Disconnected'}`, 'bot');
+
+            } catch (error) {
+                showLoading(false);
+                console.error("Connection Test Error:", error);
+                
+                let errorMessage = "❌ Connection failed:<br/>";
+                if (error.message.includes('fetch') || error.name === 'TypeError') {
+                    errorMessage += "• API server is not running on http://localhost:8001<br/>";
+                    errorMessage += "• Please start your FastAPI server<br/>";
+                    errorMessage += "• Check if port 8001 is correct";
+                } else {
+                    errorMessage += `• ${error.message}`;
+                }
+                
+                addMessageToChat(errorMessage, 'bot');
+            }
+        }
+
+        // UI Helper Functions
+        function addMessageToChat(message, type) {
+            const chatBox = document.getElementById("chatBox");
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${type}-message`;
+            messageDiv.innerHTML = `<p>${message}</p>`;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function addQueryToChat(query, result) {
+            const chatBox = document.getElementById("chatBox");
+            const queryDiv = document.createElement('div');
+            queryDiv.className = 'chat-message bot-message query-message';
+            queryDiv.innerHTML = `
+                <div class="query-container">
+                    <p><strong>SQL Query:</strong></p>
+                    <code class="sql-code">${query}</code>
+                    ${result ? `<p><strong>Result:</strong></p><pre class="result-data">${JSON.stringify(result, null, 2)}</pre>` : ''}
+                </div>
+            `;
+            chatBox.appendChild(queryDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function addDataToChat(data) {
+            const chatBox = document.getElementById("chatBox");
+            const dataDiv = document.createElement('div');
+            dataDiv.className = 'chat-message bot-message data-message';
+            dataDiv.innerHTML = `<pre class="data-display">${JSON.stringify(data, null, 2)}</pre>`;
+            chatBox.appendChild(dataDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function showApprovalInterface(data) {
+            const approvalDiv = document.getElementById("approvalInterface");
+            document.getElementById("pendingQuery").textContent = data.query;
+            document.getElementById("approvalMessage").textContent = data.message;
+            approvalDiv.style.display = 'block';
+            
+            addMessageToChat(`SQL Query requires approval:<br/><code>${data.query}</code>`, 'bot');
+        }
+
+        function hideApprovalInterface() {
+            document.getElementById("approvalInterface").style.display = 'none';
+            document.getElementById("feedbackInput").value = '';
+        }
+
+        function showLoading(show) {
+            document.getElementById("loadingIndicator").style.display = show ? 'block' : 'none';
+        }
+
+        function showRegenerateOption() {
+            const regenerateDiv = document.getElementById("postExecutionRegenerate");
+            regenerateDiv.style.display = 'block';
+        }
+
+        function hideRegenerateOption() {
+            const regenerateDiv = document.getElementById("postExecutionRegenerate");
+            regenerateDiv.style.display = 'none';
+            document.getElementById("postExecutionFeedback").value = '';
+        }
+
+        function clearChat() {
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML = '';
+            // Optionally, re-add the welcome message
+            addMessageToChat("Hello! I'm your SQL Agent. I can help you with natural language queries, SQL generation, and memory management. Try asking me something or use the action buttons on the left!", 'bot');
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Enter key support for message input
+            document.getElementById("messageInput").addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendQuery();
+                }
+            });
+
+            // Enter key support for feedback input
+            document.getElementById("feedbackInput").addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    regenerateQuery();
+                }
+            });
+
+            // Enter key support for post-execution feedback input
+            document.getElementById("postExecutionFeedback").addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    regenerateLastQuery();
+                }
+            });
+
+            // Hide sidebar by default on mobile
+            if (window.innerWidth < 900) {
+                document.querySelector('.main-layout').classList.add('sidebar-collapsed');
+            }
+        });
+    </script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            color: #1f2937;
+        }
+
+        /* Animated background particles */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 119, 198, 0.2) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-20px) rotate(2deg); }
+            66% { transform: translateY(10px) rotate(-1deg); }
+        }
+
+        .main-layout {
+            display: flex;
+            height: 100vh;
+            min-height: 100vh;
+            width: 100vw;
+            gap: 1.5rem;
+            transition: gap 0.3s;
+        }
+
+        .sidebar {
+            min-width: 320px;
+            max-width: 340px;
+            height: 100vh;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 0 24px 24px 0;
+            padding: 2rem 1.5rem;
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            animation: slideInLeft 0.8s ease-out;
+            transition: margin-left 0.3s, opacity 0.3s, visibility 0.3s;
+        }
+
+        @media (max-width: 1200px) {
+            .main-layout { gap: 0.5rem; }
+        }
+
+        @media (max-width: 900px) {
+            .main-layout { flex-direction: column; height: auto; min-height: 100vh; gap: 0; }
+            .sidebar { max-width: 100vw; min-width: 0; border-radius: 0 0 24px 24px; height: auto; margin-left: 0; }
+        }
+
+        .sidebar-open .sidebar {
+            margin-left: 0;
+            opacity: 1;
+            pointer-events: auto;
+            visibility: visible;
+        }
+
+        .sidebar-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .sidebar-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .sidebar-icon i {
+            color: white;
+            font-size: 20px;
+        }
+
+        .sidebar h2 {
+            margin-bottom: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.025em;
+        }
+
+        .sidebar-subtitle {
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 400;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .action-btn {
+            padding: 0.875rem 1rem;
+            border: 2px solid transparent;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .action-btn:hover::before {
+            left: 100%;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .action-btn.danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .action-btn.danger:hover {
+            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+        }
+
+        .action-btn.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .action-btn.success:hover {
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        }
+
+        .memory-commands {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 2px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .memory-commands h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-divider {
+            margin: 1.5rem 0;
+            padding-top: 1.5rem;
+            border-top: 2px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .troubleshooting-section {
+            background: rgba(255, 193, 7, 0.1);
+            border: 2px solid rgba(255, 193, 7, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .troubleshooting-section h3 {
+            color: #d97706;
+            margin-bottom: 0.75rem;
+        }
+
+        .troubleshooting-section p {
+            color: #92400e;
+            font-size: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .troubleshooting-section ol {
+            color: #78716c;
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
+        .troubleshooting-section code {
+            font-size: 0.7rem;
+            background: rgba(0, 0, 0, 0.1);
+            padding: 0.125rem 0.25rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .troubleshooting-section a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .troubleshooting-section a:hover {
+            text-decoration: underline;
+        }
+
+        .chat-container {
+            flex: 1;
+            height: 100vh;
+            margin: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), 0 15px 12px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: slideInRight 0.8s ease-out;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .nav-bar {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            padding: 1.5rem 2rem;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 24px 24px 0 0;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            flex-shrink: 0;
+        }
+
+        .nav-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .nav-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-icon i {
+            color: white;
+            font-size: 18px;
+        }
+
+        .nav-bar h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.025em;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .nav-links span {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .chat-box {
+            flex: 1 1 0%;
+            overflow-y: auto;
+            padding: 2rem;
+            background: transparent;
+            margin: 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(102, 126, 234, 0.3) transparent;
+        }
+
+        .chat-box::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-box::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-box::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.3);
+            border-radius: 3px;
+        }
+
+        .chat-box::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.5);
+        }
+
+        .chat-message {
+            display: flex;
+            margin: 1.5rem 0;
+            animation: messageSlideIn 0.4s ease-out;
+        }
+
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-message p {
+            padding: 1rem 1.25rem;
+            border-radius: 18px;
+            max-width: 75%;
+            line-height: 1.5;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-message {
+            justify-content: flex-end;
+        }
+
+        .user-message p {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            margin-left: auto;
+        }
+
+        .bot-message p {
+            background: rgba(248, 250, 252, 0.8);
+            color: #374151;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            backdrop-filter: blur(10px);
+        }
+
+        .query-message .query-container {
+            background: rgba(248, 250, 252, 0.9);
+            padding: 1.5rem;
+            border-radius: 16px;
+            border-left: 4px solid #667eea;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.1);
+        }
+
+        .sql-code {
+            display: block;
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            margin: 0.75rem 0;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .result-data, .data-display {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+            line-height: 1.4;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .approval-interface {
+            background: rgba(255, 193, 7, 0.1);
+            border: 2px solid rgba(255, 193, 7, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            display: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 25px rgba(255, 193, 7, 0.2);
+        }
+
+        .post-execution-regenerate {
+            background: #2a3d2a;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .post-execution-regenerate h3 {
+            color: #28a745;
+            margin-top: 0;
+        }
+
+        .approval-interface h3 {
+            color: #ffc107;
+            margin-top: 0;
+        }
+
+        .approval-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .approval-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .approve-btn {
+            background: #28a745;
+            color: white;
+        }
+
+        .regenerate-btn {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .cancel-btn {
+            background: #dc3545;
+            color: white;
+        }
+
+        .feedback-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #555;
+            background: #1a1a1a;
+            color: white;
+            border-radius: 4px;
+            margin: 10px 0;
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .input-container {
+            display: flex;
+            padding: 1.5rem 2rem;
+            background: transparent;
+            border-top: 1px solid rgba(226, 232, 240, 0.8);
+            gap: 1rem;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .input-container input {
+            flex: 1;
+            padding: 1rem 1.25rem;
+            border: 2px solid #e2e8f0;
+            background: rgba(255, 255, 255, 0.9);
+            color: #374151;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .input-container input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-container input::placeholder {
+            color: #9ca3af;
+        }
+
+        .input-container button {
+            padding: 1rem 1.5rem;
+            border: none;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            min-width: 80px;
+        }
+
+        .input-container button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .loading-indicator {
+            text-align: center;
+            color: #667eea;
+            font-style: italic;
+            padding: 1rem;
+            display: none;
+            font-weight: 500;
+        }
+
+        .loading-indicator::after {
+            content: '...';
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0%, 33% { content: '.'; }
+            34%, 66% { content: '..'; }
+            67%, 100% { content: '...'; }
+        }
+
+        .clear-chat-btn {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            padding: 1rem 1.25rem;
+            margin-left: 0.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .clear-chat-btn:hover {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="main-layout">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <h2>Quick Actions</h2>
+                <p class="sidebar-subtitle">Database operations & tools</p>
+            </div>
+            <div class="action-buttons">
+                <button class="action-btn success" onclick="testConnection()">
+                    <i class="fas fa-link"></i> Test Connection
+                </button>
+                <button class="action-btn success" onclick="checkHealth()">
+                    <i class="fas fa-heart-pulse"></i> System Health
+                </button>
+                <button class="action-btn" onclick="showDatabaseSchema()">
+                    <i class="fas fa-table"></i> View Tables & Columns
+                </button>
+                <button class="action-btn" onclick="getAllUsers()">
+                    <i class="fas fa-users"></i> All Users
+                </button>
+                <button class="action-btn danger" onclick="clearMemory()">
+                    <i class="fas fa-trash"></i> Clear Memory
+                </button>
+            </div>
+
+            <div class="memory-commands">
+                <h3><i class="fas fa-brain"></i> Memory Commands</h3>
+                <div class="action-buttons">
+                    <button class="action-btn" onclick="handleMemoryCommand('/history')">
+                        <i class="fas fa-history"></i> History
+                    </button>
+                    <button class="action-btn" onclick="handleMemoryCommand('/entities')">
+                        <i class="fas fa-tags"></i> Entities
+                    </button>
+                    <button class="action-btn" onclick="handleMemoryCommand('/summary')">
+                        <i class="fas fa-file-text"></i> Summary
+                    </button>
+                </div>
+            </div>
+
+            <div class="troubleshooting-section">
+                <h3><i class="fas fa-wrench"></i> Troubleshooting</h3>
+                <p style="font-size: 11px; color: #ffc107;">If you get connection errors:</p>
+                <ol style="font-size: 11px; color: #ccc; padding-left: 15px;">
+                    <li>Click "🔗 Test Connection" above</li>
+                    <li>Start your FastAPI server:
+                        <code style="font-size: 10px; background: #1a1a1a; padding: 2px;">python start_server.py</code>
+                    </li>
+                    <li>Check server runs on localhost:8001</li>
+                    <li>Verify API docs at: 
+                        <a href="http://localhost:8001/docs" target="_blank" style="color: #00c1ff; font-size: 10px;">localhost:8001/docs</a>
+                    </li>
+                </ol>
+            </div>
+        </div>
+        <div class="chat-container">
+            <div class="nav-bar">
+                <div class="nav-title">
+                    <div class="nav-icon">
+                        <i class="fas fa-comment-dots"></i>
+                    </div>
+                    <h2>SQL Agent Chat</h2>
+                </div>
+                <div class="nav-links">
+                    {% if user.is_authenticated %}
+                    <span>Hello, {{ user.username }}</span> |
+                    <a href="{% url 'logout' %}">Logout</a>
+                    {% else %}
+                    <a href="{% url 'login' %}">Login</a>
+                    <a href="{% url 'register' %}">Register</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="chat-box" id="chatBox">
+                <div class="chat-message bot-message">
+                    <p>Hello! I'm your SQL Agent. I can help you with natural language queries, SQL generation, and memory management. Try asking me something or use the action buttons on the left!</p>
+                </div>
+            </div>
+
+            <div class="loading-indicator" id="loadingIndicator">
+                Processing your request
+            </div>
+
+            <div class="approval-interface" id="approvalInterface">
+                <h3>⚠️ SQL Query Approval Required</h3>
+                <p id="approvalMessage"></p>
+                <code id="pendingQuery" class="sql-code"></code>
+                
+                <textarea id="feedbackInput" class="feedback-input" placeholder="Optional: Provide feedback to modify the query..."></textarea>
+                
+                <div class="approval-buttons">
+                    <button class="approval-btn approve-btn" onclick="approveQuery()">✅ Approve & Execute</button>
+                    <button class="approval-btn regenerate-btn" onclick="regenerateQuery()">🔄 Regenerate with Feedback</button>
+                    <button class="approval-btn cancel-btn" onclick="hideApprovalInterface()">❌ Cancel</button>
+                </div>
+            </div>
+
+            <div class="post-execution-regenerate" id="postExecutionRegenerate">
+                <h3>🔄 Query Executed - Need Changes?</h3>
+                <p>The query has been executed. If the results aren't what you expected, you can regenerate the query with feedback:</p>
+                
+                <textarea id="postExecutionFeedback" class="feedback-input" placeholder="Describe what you'd like to change about the query (e.g., 'Include only active employees', 'Sort by date descending', 'Add a WHERE clause for department')..."></textarea>
+                
+                <div class="approval-buttons">
+                    <button class="approval-btn regenerate-btn" onclick="regenerateLastQuery()">🔄 Regenerate Query</button>
+                    <button class="approval-btn cancel-btn" onclick="hideRegenerateOption()">✅ Keep Current Query</button>
+                </div>
+            </div>
+
+            {% if user.is_authenticated %}
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Type your question or command...">
+                <button onclick="sendQuery()">Send</button>
+                <button class="clear-chat-btn" onclick="clearChat()"><i class="fas fa-trash"></i> Clear Chat</button>
+            </div>
+            {% else %}
+            <p style="text-align: center;">Please <a href="{% url 'login' %}">log in</a> to chat.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - SQL Agent</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated background particles */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 119, 198, 0.2) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-20px) rotate(2deg); }
+            66% { transform: translateY(10px) rotate(-1deg); }
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 3rem 2.5rem;
+            box-shadow: 
+                0 20px 40px rgba(0, 0, 0, 0.1),
+                0 15px 12px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+            animation: slideUp 0.8s ease-out;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .login-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .login-icon i {
+            color: white;
+            font-size: 24px;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.75rem;
+            background: linear-gradient(135deg, #1f2937, #4b5563);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.025em;
+            line-height: 1.1;
+        }
+
+        .login-subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            font-weight: 400;
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-subtext {
+            color: #9ca3af;
+            font-size: 0.875rem;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+
+        .form-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            transition: color 0.2s ease;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 400;
+            background-color: #fff;
+            transition: all 0.3s ease;
+            outline: none;
+            color: #1f2937;
+        }
+
+        .form-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .form-input:focus + .form-label {
+            color: #667eea;
+        }
+
+        .form-input::placeholder {
+            color: #9ca3af;
+            font-weight: 400;
+        }
+
+        /* Enhanced Django form fields styling */
+        p {
+            margin-bottom: 1.75rem;
+            position: relative;
+        }
+
+        p label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.6rem;
+            transition: all 0.2s ease;
+            letter-spacing: 0.025em;
+        }
+
+        p input[type="text"],
+        p input[type="email"],
+        p input[type="password"] {
+            width: 100%;
+            padding: 1rem 1.125rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 400;
+            background-color: #fff;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: none;
+            color: #1f2937;
+            line-height: 1.5;
+        }
+
+        p input[type="text"]:focus,
+        p input[type="email"]:focus,
+        p input[type="password"]:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+            transform: translateY(-1px);
+        }
+
+        p input[type="text"]:focus ~ label,
+        p input[type="email"]:focus ~ label,
+        p input[type="password"]:focus ~ label {
+            color: #667eea;
+        }
+
+        /* Placeholder styling */
+        p input::placeholder {
+            color: #9ca3af;
+            font-weight: 400;
+            font-style: italic;
+        }
+
+        .login-button {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .button-text {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.125rem;
+            line-height: 1.2;
+        }
+
+        .button-subtext {
+            font-size: 0.8rem;
+            font-weight: 400;
+            opacity: 0.9;
+            line-height: 1.2;
+        }
+
+        .login-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .login-button:hover::before {
+            left: 100%;
+        }
+
+        .login-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .login-button:active {
+            transform: translateY(0);
+        }
+
+        .register-link {
+            text-align: center;
+            margin-top: 2.5rem;
+            padding-top: 2rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .register-link p {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+
+        .register-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.625rem 1.25rem;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            display: inline-block;
+            font-size: 0.9rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .register-link a::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+            transition: left 0.3s ease;
+        }
+
+        .register-link a:hover::before {
+            left: 100%;
+        }
+
+        .register-link a:hover {
+            background-color: #f3f4f6;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        }
+
+        /* Enhanced Error styling */
+        .errorlist {
+            list-style: none;
+            padding: 0;
+            margin: 0.75rem 0 0 0;
+            animation: slideInError 0.3s ease-out;
+        }
+
+        @keyframes slideInError {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .errorlist li {
+            color: #dc2626;
+            font-size: 0.875rem;
+            font-weight: 500;
+            background: linear-gradient(135deg, #fef2f2, #fef7f7);
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.75rem;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+            line-height: 1.4;
+        }
+
+        .errorlist li::before {
+            content: '⚠️';
+            margin-right: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        /* Enhanced Help text styling */
+        .helptext {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.5rem;
+            display: block;
+            line-height: 1.4;
+            font-weight: 400;
+            background-color: #f9fafb;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border-left: 3px solid #d1d5db;
+        }
+
+        .helptext::before {
+            content: '💡 ';
+            font-size: 0.75rem;
+            margin-right: 0.25rem;
+        }
+
+        /* Forgot password link */
+        .forgot-password {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .forgot-password a {
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-radius: 6px;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .forgot-password a:hover {
+            color: #667eea;
+            background-color: #f9fafb;
+        }
+
+        /* Responsive design */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 2rem 1.5rem;
+                margin: 1rem;
+                border-radius: 16px;
+            }
+
+            .login-title {
+                font-size: 1.5rem;
+            }
+
+            .login-subtitle {
+                font-size: 0.875rem;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .loading .login-button {
+            background: #9ca3af;
+        }
+
+        .loading .login-button::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Welcome back message */
+        .welcome-message {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border: 1px solid #bae6fd;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .welcome-message i {
+            color: #0284c7;
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .welcome-message p {
+            color: #0c4a6e;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin: 0;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <div class="login-icon">
+                <i class="fas fa-sign-in-alt"></i>
+            </div>
+            <h1 class="login-title">Welcome Back</h1>
+            <p class="login-subtitle">Sign in to your SQL Agent account</p>
+            <p class="login-subtext">Continue your intelligent data exploration journey</p>
+        </div>
+
+        <div class="welcome-message">
+            <i class="fas fa-database"></i>
+            <p>🎯 Ready to unlock powerful SQL insights? Sign in to access your personalized analytics dashboard.</p>
+        </div>
+
+        <form method="post" id="loginForm">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <div class="forgot-password">
+                <a href="#" onclick="alert('🔐 Password reset feature coming soon! Contact support for immediate assistance.')">🔒 Forgot your password?</a>
+            </div>
+            <button type="submit" class="login-button">
+                <span class="button-text">Sign In Securely</span>
+                <span class="button-subtext">Access your personalized dashboard</span>
+            </button>
+        </form>
+
+        <div class="register-link">
+            <p>New to SQL Agent? Join our community!</p>
+            <a href="{% url 'register' %}">🚀 Create your free account</a>
+        </div>
+    </div>
+
+    <script>
+        // Add loading state when form is submitted
+        document.getElementById('loginForm').addEventListener('submit', function() {
+            const container = document.querySelector('.login-container');
+            container.classList.add('loading');
+        });
+
+        // Add focus animations to form inputs
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.style.transform = 'translateY(-2px)';
+            });
+            
+            input.addEventListener('blur', function() {
+                this.parentElement.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Add floating label effect
+        document.querySelectorAll('input').forEach(input => {
+            if (input.value !== '') {
+                input.parentElement.querySelector('label').style.color = '#667eea';
+            }
+            
+            input.addEventListener('input', function() {
+                const label = this.parentElement.querySelector('label');
+                if (this.value !== '') {
+                    label.style.color = '#667eea';
+                } else {
+                    label.style.color = '#374151';
+                }
+            });
+        });
+
+        // Welcome message animation
+        const welcomeMessage = document.querySelector('.welcome-message');
+        setTimeout(() => {
+            welcomeMessage.style.transform = 'scale(1.02)';
+            setTimeout(() => {
+                welcomeMessage.style.transform = 'scale(1)';
+            }, 200);
+        }, 500);
+    </script>
+</body>
+</html>

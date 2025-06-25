@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - SQL Agent</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated background particles */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 119, 198, 0.2) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-20px) rotate(2deg); }
+            66% { transform: translateY(10px) rotate(-1deg); }
+        }
+
+        .register-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 3rem 2.5rem;
+            box-shadow: 
+                0 20px 40px rgba(0, 0, 0, 0.1),
+                0 15px 12px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+            animation: slideUp 0.8s ease-out;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .register-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .register-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .register-icon i {
+            color: white;
+            font-size: 24px;
+        }
+
+        .register-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.75rem;
+            background: linear-gradient(135deg, #1f2937, #4b5563);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.025em;
+            line-height: 1.1;
+        }
+
+        .register-subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            font-weight: 400;
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+
+        .register-subtext {
+            color: #9ca3af;
+            font-size: 0.875rem;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+
+        .form-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            transition: color 0.2s ease;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 400;
+            background-color: #fff;
+            transition: all 0.3s ease;
+            outline: none;
+            color: #1f2937;
+        }
+
+        .form-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .form-input:focus + .form-label {
+            color: #667eea;
+        }
+
+        .form-input::placeholder {
+            color: #9ca3af;
+            font-weight: 400;
+        }
+
+        /* Enhanced Django form fields styling */
+        p {
+            margin-bottom: 1.75rem;
+            position: relative;
+        }
+
+        p label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.6rem;
+            transition: all 0.2s ease;
+            letter-spacing: 0.025em;
+        }
+
+        p input[type="text"],
+        p input[type="email"],
+        p input[type="password"] {
+            width: 100%;
+            padding: 1rem 1.125rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 400;
+            background-color: #fff;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: none;
+            color: #1f2937;
+            line-height: 1.5;
+        }
+
+        p input[type="text"]:focus,
+        p input[type="email"]:focus,
+        p input[type="password"]:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+            transform: translateY(-1px);
+        }
+
+        p input[type="text"]:focus ~ label,
+        p input[type="email"]:focus ~ label,
+        p input[type="password"]:focus ~ label {
+            color: #667eea;
+        }
+
+        /* Placeholder styling */
+        p input::placeholder {
+            color: #9ca3af;
+            font-weight: 400;
+            font-style: italic;
+        }
+
+        .register-button {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .button-text {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.125rem;
+            line-height: 1.2;
+        }
+
+        .button-subtext {
+            font-size: 0.8rem;
+            font-weight: 400;
+            opacity: 0.9;
+            line-height: 1.2;
+        }
+
+        .register-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .register-button:hover::before {
+            left: 100%;
+        }
+
+        .register-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .register-button:active {
+            transform: translateY(0);
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 2.5rem;
+            padding-top: 2rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .login-link p {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+
+        .login-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.625rem 1.25rem;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            display: inline-block;
+            font-size: 0.9rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-link a::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+            transition: left 0.3s ease;
+        }
+
+        .login-link a:hover::before {
+            left: 100%;
+        }
+
+        .login-link a:hover {
+            background-color: #f3f4f6;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        }
+
+        /* Enhanced Error styling */
+        .errorlist {
+            list-style: none;
+            padding: 0;
+            margin: 0.75rem 0 0 0;
+            animation: slideInError 0.3s ease-out;
+        }
+
+        @keyframes slideInError {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .errorlist li {
+            color: #dc2626;
+            font-size: 0.875rem;
+            font-weight: 500;
+            background: linear-gradient(135deg, #fef2f2, #fef7f7);
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.75rem;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+            line-height: 1.4;
+        }
+
+        .errorlist li::before {
+            content: '⚠️';
+            margin-right: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        /* Enhanced Help text styling */
+        .helptext {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.5rem;
+            display: block;
+            line-height: 1.4;
+            font-weight: 400;
+            background-color: #f9fafb;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border-left: 3px solid #d1d5db;
+        }
+
+        .helptext::before {
+            content: '💡 ';
+            font-size: 0.75rem;
+            margin-right: 0.25rem;
+        }
+
+        /* Responsive design */
+        @media (max-width: 480px) {
+            .register-container {
+                padding: 2rem 1.5rem;
+                margin: 1rem;
+                border-radius: 16px;
+            }
+
+            .register-title {
+                font-size: 1.5rem;
+            }
+
+            .register-subtitle {
+                font-size: 0.875rem;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .loading .register-button {
+            background: #9ca3af;
+        }
+
+        .loading .register-button::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-header">
+            <div class="register-icon">
+                <i class="fas fa-user-plus"></i>
+            </div>
+            <h1 class="register-title">Create Your Account</h1>
+            <p class="register-subtitle">Join SQL Agent and unlock intelligent data insights</p>
+            <p class="register-subtext">Get started with your personalized SQL assistant today</p>
+        </div>
+
+        <form method="post" id="registerForm">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="register-button">
+                <span class="button-text">Create Your Account</span>
+                <span class="button-subtext">Join thousands of users</span>
+            </button>
+        </form>
+
+        <div class="login-link">
+            <p>Already have an account with us?</p>
+            <a href="{% url 'login' %}">Sign in to your account</a>
+        </div>
+    </div>
+
+    <script>
+        // Add loading state when form is submitted
+        document.getElementById('registerForm').addEventListener('submit', function() {
+            const container = document.querySelector('.register-container');
+            container.classList.add('loading');
+        });
+
+        // Add focus animations to form inputs
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.style.transform = 'translateY(-2px)';
+            });
+            
+            input.addEventListener('blur', function() {
+                this.parentElement.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Add floating label effect
+        document.querySelectorAll('input').forEach(input => {
+            if (input.value !== '') {
+                input.parentElement.querySelector('label').style.color = '#667eea';
+            }
+            
+            input.addEventListener('input', function() {
+                const label = this.parentElement.querySelector('label');
+                if (this.value !== '') {
+                    label.style.color = '#667eea';
+                } else {
+                    label.style.color = '#374151';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

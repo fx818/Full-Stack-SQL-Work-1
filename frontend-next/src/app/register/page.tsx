@@ -30,7 +30,7 @@ export default function RegisterPage() {
 
       login(username.trim());
       router.push('/');
-    } catch (error) {
+    } catch {
       setError('Registration failed. Please try again.');
     } finally {
       setIsLoading(false);

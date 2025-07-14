@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, RefreshCw, Heart, Users, Activity, Database, Trash2, Settings, LogOut, MessageSquare, Bot, User, Copy, Check, AlertCircle, FileText } from 'lucide-react';
+import { Send, Loader2, RefreshCw, Users, Activity, Database, Settings, LogOut, MessageSquare, Bot, FileText } from 'lucide-react';
 import { ChatMessage } from './ChatMessage';
 import { SqlQueryDisplay } from './SqlQueryDisplay';
 import { ApprovalInterface } from './ApprovalInterface';
-import { apiService, ApprovalResponse, QueryResponse } from '@/lib/api';
+import { apiService } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -31,7 +31,12 @@ export function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentStateHex, setCurrentStateHex] = useState<string | null>(null);
   const [currentApprovalData, setCurrentApprovalData] = useState<ApprovalData | null>(null);
-  const [lastExecutedQuery, setLastExecutedQuery] = useState<any>(null);
+  const [lastExecutedQuery, setLastExecutedQuery] = useState<{
+    query: string;
+    result: string;
+    question: string;
+    resolved_question: string;
+  } | null>(null);
   const [showRegenerateOption, setShowRegenerateOption] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -207,23 +212,25 @@ export function ChatInterface() {
     setIsLoading(true);
 
     try {
-      let response;
+      let response: unknown;
       let message = '';
 
       switch (command) {
         case '/health':
           response = await apiService.checkHealth();
-          const status = response.status === 'healthy' ? '✅ Healthy' : '❌ Unhealthy';
-          const dbStatus = response.database_connected ? '✅ Connected' : '❌ Disconnected';
-          const supabaseStatus = response.supabase_connected ? '✅ Connected' : '❌ Disconnected';
-          message = `System Health: ${status}\nDatabase: ${dbStatus}\nSupabase: ${supabaseStatus}\nTimestamp: ${response.timestamp}`;
+          const healthResponse = response as import('@/lib/api').HealthResponse;
+          const status = healthResponse.status === 'healthy' ? '✅ Healthy' : '❌ Unhealthy';
+          const dbStatus = healthResponse.database_connected ? '✅ Connected' : '❌ Disconnected';
+          const supabaseStatus = healthResponse.supabase_connected ? '✅ Connected' : '❌ Disconnected';
+          message = `System Health: ${status}\nDatabase: ${dbStatus}\nSupabase: ${supabaseStatus}\nTimestamp: ${healthResponse.timestamp}`;
           break;
 
         case '/users':
           response = await apiService.getAllUsers();
-          if (response.success) {
-            const usersList = response.users.join(', ');
-            message = `Active Users (${response.total_users}): ${usersList}`;
+          const usersResponse = response as import('@/lib/api').UsersResponse;
+          if (usersResponse.success) {
+            const usersList = usersResponse.users.join(', ');
+            message = `Active Users (${usersResponse.total_users}): ${usersList}`;
           } else {
             message = "Error retrieving users.";
           }
@@ -242,8 +249,9 @@ export function ChatInterface() {
           if (!user) break;
           if (confirm("Are you sure you want to clear your memory?")) {
             response = await apiService.clearUserMemory(user.username);
-            if (response.success) {
-              message = response.message;
+            const clearResponse = response as { success: boolean; message: string };
+            if (clearResponse.success) {
+              message = clearResponse.message;
             } else {
               message = "Error clearing memory.";
             }
@@ -429,7 +437,7 @@ export function ChatInterface() {
                 Welcome to SQL Agent
               </h3>
               <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                I'm your AI-powered database assistant. Ask me questions about your data, and I'll help you generate SQL queries and analyze your database.
+                I&apos;m your AI-powered database assistant. Ask me questions about your data, and I&apos;ll help you generate SQL queries and analyze your database.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
                 <div className="bg-white p-4 rounded-xl border border-gray-200">

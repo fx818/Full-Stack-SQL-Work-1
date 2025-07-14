@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, X, RefreshCw, MessageSquare, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Check, X, RefreshCw, AlertTriangle } from 'lucide-react';
 import { SqlQueryDisplay } from './SqlQueryDisplay';
 
 interface ApprovalInterfaceProps {

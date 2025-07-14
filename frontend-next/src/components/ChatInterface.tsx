@@ -5,7 +5,7 @@ import { Send, Loader2, RefreshCw, Users, Activity, Database, Settings, LogOut, 
 import { ChatMessage } from './ChatMessage';
 import { SqlQueryDisplay } from './SqlQueryDisplay';
 import { ApprovalInterface } from './ApprovalInterface';
-import { apiService } from '../lib/api';
+import { apiService } from './api';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -218,7 +218,7 @@ export function ChatInterface() {
       switch (command) {
         case '/health':
           response = await apiService.checkHealth();
-          const healthResponse = response as import('../lib/api').HealthResponse;
+          const healthResponse = response as import('./api').HealthResponse;
           const status = healthResponse.status === 'healthy' ? '✅ Healthy' : '❌ Unhealthy';
           const dbStatus = healthResponse.database_connected ? '✅ Connected' : '❌ Disconnected';
           const supabaseStatus = healthResponse.supabase_connected ? '✅ Connected' : '❌ Disconnected';
@@ -227,7 +227,7 @@ export function ChatInterface() {
 
         case '/users':
           response = await apiService.getAllUsers();
-          const usersResponse = response as import('../lib/api').UsersResponse;
+          const usersResponse = response as import('./api').UsersResponse;
           if (usersResponse.success) {
             const usersList = usersResponse.users.join(', ');
             message = `Active Users (${usersResponse.total_users}): ${usersList}`;

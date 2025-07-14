@@ -1,7 +1,7 @@
 'use client';
 
 import { User, Bot } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../lib/utils';
 
 interface ChatMessageProps {
   content: string;

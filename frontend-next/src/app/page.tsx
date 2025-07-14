@@ -1,7 +1,7 @@
 'use client';
 
-import { useAuth } from '@/contexts/AuthContext';
-import { ChatInterface } from '@/components/ChatInterface';
+import { useAuth } from '../contexts/AuthContext';
+import { ChatInterface } from '../components/ChatInterface';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';

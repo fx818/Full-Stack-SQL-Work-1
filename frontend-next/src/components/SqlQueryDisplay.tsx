@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Copy, Check, Database, BarChart3 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from './utils';
 
 interface SqlQueryDisplayProps {
   query: string;

@@ -55,8 +55,7 @@ app.add_middleware(
         "http://127.0.0.1:8080",   # Vue.js alternative
         "http://localhost:5000",   # Flask default
         "http://127.0.0.1:5000",
-        "https://sqlagent-nine.vercel.app/,
-        "*./vercel.app",
+        "https://sqlagent-nine.vercel.app/",
         "*"                        # Allow all origins for development (remove for production)
     ],
     allow_credentials=True,

@@ -56,6 +56,9 @@ app.add_middleware(
         "http://localhost:5000",   # Flask default
         "http://127.0.0.1:5000",
         "http://localhost:8081",
+        "http://localhost:5173",
+        "https://arcai.engineer",
+        "https://www.arcai.engineer",
         "https://sqlagent-nine.vercel.app",
         # Allow all origins for development (remove for production)
     ],
